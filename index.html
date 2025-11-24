@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bose–Einstein Macrostate Calculator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background: #0a1a2a;
+      color: #e8ecf2;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      background: #112233;
+      padding: 20px;
+      border-radius: 12px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    table th, table td {
+      padding: 8px;
+      border-bottom: 1px solid #335;
+      text-align: left;
+    }
+    select, input {
+      padding: 6px;
+      margin: 4px;
+      background: #223344;
+      color: white;
+      border: 1px solid #446;
+      border-radius: 6px;
+    }
+    button {
+      padding: 10px 20px;
+      background: #1e90ff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+<div class="input-card" style="background:#0f1e33;padding:20px;border-radius:12px;box-shadow:0 0 12px #0006;margin-bottom:25px;">
+  <h2 style="margin-top:0;margin-bottom:15px;">Bose–Einstein Macrostate Calculator</h2>
+  
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:15px;">
+
+    <div>
+      <label>N (jumlah partikel):</label>
+      <input id="N" type="number" value="5" style="width:100%">
+    </div>
+
+    <div>
+      <label>L (jumlah level energi):</label>
+      <input id="L" type="number" value="6" style="width:100%">
+    </div>
+
+    <div>
+      <label>Total energi:</label>
+      <input id="Etot" type="number" value="12" style="width:100%">
+    </div>
+
+    <div>
+      <label>Boltzmann k:</label>
+      <input id="kval" type="number" value="1" style="width:100%">
+    </div>
+
+    <div>
+      <label>Preset degenerasi:</label>
+      <select id="preset" style="width:100%">
+        <option value="custom">Custom</option>
+        <option value="ho3d">3D Harmonic Oscillator</option>
+        <option value="hydrogen">Hydrogen-like</option>
+      </select>
+    </div>
+
+    <div>
+      <label>Degenerasi (g per level):</label>
+      <input id="gInput" type="text" value="1,1,1,1" style="width:100%">
+    </div>
+
+  </div>
+
+  <button onclick="generate()" style="margin-top:20px;width:100%;padding:12px;font-size:16px;">Generate Macrostate</button>
+</div>
+
+<h3>Results</h3></h3>
+<table id="results">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>n (per level)</th>
+      <th>E_total</th>
+      <th>W_i (per level)</th>
+      <th>W_total</th>
+      <th>Microstate</th>
+      <th>S = k ln W</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<h3>Graph: W vs E_total</h3>
+<canvas id="chart" height="120"></canvas>
+
+</div>
+
+<script>
+function comb(n, k) {
+  if (k < 0 || k > n) return 0;
+  if (k === 0 || k === n) return 1;
+  let r = 1;
+  for (let i = 1; i <= k; i++) r = r * (n - k + i) / i;
+  return Math.round(r);
+}
+
+function applyPreset() {
+  const preset = document.getElementById("preset").value;
+  if (preset === "ho3d") {
+    // g(n) = (n+1)(n+2)/2
+    document.getElementById("gInput").value = "1,3,6,10";
+  }
+  if (preset === "hydrogen") {
+    // g(n) = 2n^2
+    document.getElementById("gInput").value = "2,8,18,32";
+  }
+}
+
+document.getElementById("preset").addEventListener("change", applyPreset);
+
+function generate() {
+  const N = parseInt(document.getElementById("N").value);
+  const Etot = parseInt(document.getElementById("Etot").value);
+  const g = document.getElementById("gInput").value.split(",").map(Number);
+
+  let maxLevel = g.length;
+
+  let results = [];
+
+  function explore(level, remainingN, remainingE, occup) {
+    if (level === maxLevel) {
+      if (remainingN === 0 && remainingE === 0) results.push([...occup]);
+      return;
+    }
+    for (let ni = 0; ni <= remainingN; ni++) {
+      if (ni * level > remainingE) break;
+      occup[level] = ni;
+      explore(level + 1, remainingN - ni, remainingE - ni * level, occup);
+    }
+  }
+
+  explore(0, N, Etot, new Array(maxLevel).fill(0));
+
+  let tbody = document.querySelector("#results tbody");
+  tbody.innerHTML = "";
+
+  let WData = [];
+
+  results.forEach((occ, idx) => {
+    let Wi = occ.map((ni, i) => comb(ni + g[i] - 1, ni));
+    let Wtot = Wi.reduce((a, b) => a * b, 1);
+    let S = Wtot > 0 ? Math.log(Wtot) : 0;
+
+    let row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${idx + 1}</td>
+      <td>${occ.join(", ")}</td>
+      <td>${Etot}</td>
+      <td>${Wi.join(", ")}</td>
+      <td>${Wtot}</td>
+      <td>1</td>
+      <td>${S.toFixed(6)}</td>`;
+
+    tbody.appendChild(row);
+
+    WData.push(Wtot);
+  });
+
+  drawChart(WData);
+}
+
+let chart;
+function drawChart(WData) {
+  let ctx = document.getElementById("chart");
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: WData.map((_, i) => i + 1),
+      datasets: [{ data: WData }]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+</script>
+</body>
+</html>
